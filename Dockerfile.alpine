@@ -1,7 +1,8 @@
 # Copyright (c) 2018 kalaksi@users.noreply.github.com.
 # This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
 
-FROM alpine:3.12.3
+# FROM alpine:3.12.3
+FROM alpine
 LABEL maintainer="kalaksi@users.noreply.github.com"
 
 # See tinyproxy.conf for better explanation of these values.
@@ -14,6 +15,7 @@ ENV MIN_SPARE_SERVERS ""
 ENV MAX_SPARE_SERVERS ""
 # A space separated list:
 ENV ALLOWED_NETWORKS ""
+ENV LOG_LEVEL "Notice"
 
 # Use a custom UID/GID instead of the default system UID which has a greater possibility
 # for collisions with the host and other containers.
@@ -21,9 +23,8 @@ ENV TINYPROXY_UID 57981
 ENV TINYPROXY_GID 57981
 
 RUN apk add --no-cache \
-      tinyproxy
-
-RUN mv /etc/tinyproxy/tinyproxy.conf /etc/tinyproxy/tinyproxy.default.conf && \
+      tinyproxy && \
+    mv /etc/tinyproxy/tinyproxy.conf /etc/tinyproxy/tinyproxy.default.conf && \
     chown -R ${TINYPROXY_UID}:${TINYPROXY_GID} /etc/tinyproxy /var/run/tinyproxy /var/log/tinyproxy
 
 EXPOSE 8888
@@ -36,10 +37,18 @@ CMD set -eu; \
         cp /etc/tinyproxy/tinyproxy.default.conf "$CONFIG"; \
         ([ -z "$DISABLE_VIA_HEADER" ] || sed -i "s|^#DisableViaHeader .*|DisableViaHeader Yes|" "$CONFIG"); \
         ([ -z "$STAT_HOST" ]          || sed -i "s|^#StatHost .*|StatHost \"${STAT_HOST}\"|" "$CONFIG"); \
+        ([ -z "$MAX_CLIENTS" ]        || sed -i "s|^MaxClients.*|MaxClients $MAX_CLIENTS|" "$CONFIG"); \
+        ([ -z "$LOG_LEVEL" ]          || sed -i "s|^LogLevel.*|LogLevel $LOG_LEVEL|" "$CONFIG"); \
         ([ -z "$MIN_SPARE_SERVERS" ]  || sed -i "s|^MinSpareServers .*|MinSpareServers $MIN_SPARE_SERVERS|" "$CONFIG"); \
         ([ -z "$MIN_SPARE_SERVERS" ]  || sed -i "s|^StartServers .*|StartServers $MIN_SPARE_SERVERS|" "$CONFIG"); \
         ([ -z "$MAX_SPARE_SERVERS" ]  || sed -i "s|^MaxSpareServers .*|MaxSpareServers $MAX_SPARE_SERVERS|" "$CONFIG"); \
         ([ -z "$ALLOWED_NETWORKS" ]   || for network in $ALLOWED_NETWORKS; do echo "Allow $network" >> "$CONFIG"; done); \
         sed -i 's|^LogFile |# LogFile |' "$CONFIG"; \
+        sed -i '/#.*/d' "$CONFIG"; \
+        sed -i '/^$/d' "$CONFIG"; \
+        rm /etc/tinyproxy/tinyproxy.default.conf; \
     fi; \
     exec /usr/bin/tinyproxy -d;
+
+# Entrypoint
+# ENTRYPOINT ["/sbin/tini", "--", "/usr/bin/tinyproxy", "-d"]
